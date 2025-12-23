@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sign2Voice Demo</title>
+</head>
+<body>
+  <h1>Live subtitles</h1>
+  <div id="output"></div>
+
+  <script>
+    const ws = new WebSocket("ws://localhost:8000/ws");
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      document.getElementById("output").innerHTML += "<p>"+data.text+"</p>";
+    };
+  </script>
+</body>
+</html>

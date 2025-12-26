@@ -1,18 +1,257 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Sign2Voice Demo</title>
-</head>
-<body>
-  <h1>Live subtitles</h1>
-  <div id="output"></div>
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Reconnaissance signes — MediaPipe Hands</title>
+    <style>
+      /* Modern, readable UI with detection display */
+      html,body{height:100%;margin:0}
+      body{display:flex;align-items:center;justify-content:center;background:#f5f7fb;font-family:system-ui,Segoe UI,Roboto,Arial;color:#082032}
+      .wrap{width:100%;max-width:1000px;padding:24px;text-align:center}
+      .box{background:white;padding:36px;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.06)}
+      .text{font-size:48px;font-weight:700;line-height:1.05;margin:0 0 12px}
+      .muted{font-size:16px;color:#6b7280;margin:0}
+      .detection-info{background:#f0f7ff;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #0066cc;text-align:left;font-size:14px;font-family:monospace}
+      .detection-info strong{color:#0066cc}
+      .hand-card{background:#fff8f0;padding:12px;border-radius:8px;margin:8px 0;border:1px solid #ffe0cc;text-align:left}
+      .hand-label{font-weight:600;color:#d97706;margin-bottom:8px}
+      .landmarks-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:6px;font-size:11px}
+      .landmark-point{background:white;padding:6px;border-radius:4px;border:1px solid #ccc}
+      .landmark-point code{color:#0066cc;font-weight:600;display:block}
+      @media (max-width:520px){.text{font-size:28px;padding:0 6px}}
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="box">
+        <!-- Title -->
+        <h1 style="font-size:32px;margin:0 0 24px;color:#0066cc">🤖 Détecteur de Signes</h1>
 
-  <script>
-    const ws = new WebSocket("ws://localhost:8000/ws");
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      document.getElementById("output").innerHTML += "<p>"+data.text+"</p>";
-    };
-  </script>
-</body>
+        <!-- Live camera preview -->
+        <div style="display:flex;justify-content:center;margin-bottom:20px">
+          <video id="preview" autoplay playsinline muted style="width:100%;max-width:640px;height:auto;border-radius:8px;object-fit:cover;transform:scaleX(-1);background:#000;border:2px solid #0066cc"></video>
+        </div>
+
+        <!-- Detection status and hand count -->
+        <div id="detection-status" class="text" style="color:#0066cc;font-size:32px;margin:12px 0;">0 mains détectées</div>
+
+        <!-- Detection details: hands and landmarks -->
+        <div id="detection-details" style="margin:20px 0;display:none">
+          <div id="hands-container"></div>
+        </div>
+
+        <!-- Timestamps and stats -->
+        <div class="detection-info" id="stats-info" style="display:none;">
+          <strong>Frames traitées:</strong> <span id="frame-count">0</span><br/>
+          <strong>Dernière mise à jour:</strong> <span id="last-update">—</span>
+        </div>
+
+        <!-- Controls: start/stop detection -->
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+          <button id="startBtn" aria-label="Start detection" style="padding:12px 20px;border-radius:8px;border:none;cursor:pointer;background:#0b5;color:white;font-weight:600">▶ Démarrer détection</button>
+          <button id="stopBtn" aria-label="Stop detection" style="padding:12px 20px;border-radius:8px;border:1px solid #ccc;cursor:pointer;background:#fff;color:#082032;font-weight:600">⏹ Arrêter détection</button>
+        </div>
+
+        <!-- Connection status -->
+        <p id="status" class="muted" style="margin-top:16px;color:#6b7280">Connexion au serveur...</p>
+        <p style="font-size:12px;color:#999;margin:8px 0">La détection fonctionne via la caméra du serveur (indépendant de l'aperçu local)</p>
+      </div>
+    </div>
+
+    <script>
+      // WebSocket client displaying MediaPipe Hands landmarks in real-time
+      (function(){
+        const WS_URL = 'ws://localhost:8000/ws';
+        const detectionStatusEl = document.getElementById('detection-status');
+        const handsContainerEl = document.getElementById('hands-container');
+        const detectionDetailsEl = document.getElementById('detection-details');
+        const statusEl = document.getElementById('status');
+        const frameCountEl = document.getElementById('frame-count');
+        const lastUpdateEl = document.getElementById('last-update');
+        const statsInfoEl = document.getElementById('stats-info');
+
+        let ws = null;
+        let running = false;
+
+        // Update status message
+        function setStatus(s){ statusEl.textContent = s; }
+
+        // Format timestamp nicely
+        function formatTime(isoStr){
+          try{
+            const d = new Date(isoStr);
+            return d.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+          }catch(e){
+            return isoStr;
+          }
+        }
+
+        // Format landmark coordinates (rounded to 3 decimals)
+        function formatCoord(x){ return parseFloat(x).toFixed(3); }
+
+        // Render hand landmarks as a visual grid
+        function renderHandLandmarks(hand, handIndex){
+          const card = document.createElement('div');
+          card.className = 'hand-card';
+          
+          // Hand label and confidence
+          const label = document.createElement('div');
+          label.className = 'hand-label';
+          const confidence = (hand.confidence * 100).toFixed(1);
+          label.textContent = `${hand.label === 'Left' ? '👈' : '👉'} ${hand.label} (${confidence}%)`;
+          card.appendChild(label);
+          
+          // Landmarks grid
+          const grid = document.createElement('div');
+          grid.className = 'landmarks-grid';
+          
+          // Show first 5 landmarks as samples (for brevity)
+          const landmarkNames = [
+            'Wrist', 'Thumb CMC', 'Thumb MCP', 'Thumb IP', 'Thumb Tip',
+            'Index MCP', 'Index PIP', 'Index DIP', 'Index Tip', 'Middle MCP'
+          ];
+          
+          hand.landmarks.forEach((lm, i) => {
+            const point = document.createElement('div');
+            point.className = 'landmark-point';
+            point.innerHTML = `<code>L${i}</code><small>x:${formatCoord(lm.x)}<br/>y:${formatCoord(lm.y)}</small>`;
+            grid.appendChild(point);
+          });
+          
+          card.appendChild(grid);
+          return card;
+        }
+
+        // Update detection display from WebSocket message
+        function updateDetection(data){
+          if(!data || !data.detection){ return; }
+          
+          const detection = data.detection;
+          const numHands = detection.num_hands || 0;
+          
+          // Update hand count display
+          const handText = numHands === 0 ? '0 mains détectées' 
+                         : numHands === 1 ? '1 main détectée' 
+                         : `${numHands} mains détectées`;
+          detectionStatusEl.textContent = handText;
+          
+          // Update hands container
+          handsContainerEl.innerHTML = '';
+          if(detection.hands && detection.hands.length > 0){
+            detection.hands.forEach((hand, i) => {
+              handsContainerEl.appendChild(renderHandLandmarks(hand, i));
+            });
+            detectionDetailsEl.style.display = 'block';
+          } else {
+            detectionDetailsEl.style.display = 'none';
+          }
+          
+          // Update stats
+          if(data.frames_total !== undefined){
+            frameCountEl.textContent = data.frames_total;
+            statsInfoEl.style.display = 'block';
+          }
+          if(data.timestamp){
+            lastUpdateEl.textContent = formatTime(data.timestamp);
+          }
+        }
+
+        // Establish WebSocket connection
+        function connect(){
+          try{
+            ws = new WebSocket(WS_URL);
+          }catch(e){
+            setStatus('Impossible de connecter');
+            console.error('WebSocket error', e);
+            return;
+          }
+
+          ws.onopen = function(){ 
+            setStatus('Connecté ✓');
+          };
+
+          ws.onmessage = function(evt){
+            try{
+              const data = JSON.parse(evt.data);
+              // Only update display when running
+              if(running){
+                updateDetection(data);
+              }
+            }catch(err){
+              console.warn('Message non-JSON', err);
+            }
+          };
+
+          ws.onerror = function(err){
+            console.error('WebSocket erreur', err);
+            setStatus('Erreur de connexion');
+          };
+
+          ws.onclose = function(ev){
+            setStatus('Déconnecté — Reconnexion...');
+            setTimeout(connect, 2000);
+          };
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', function(){
+          connect();
+          setStatus('Prêt');
+          
+          // Wire buttons
+          const startBtn = document.getElementById('startBtn');
+          const stopBtn = document.getElementById('stopBtn');
+          
+          // Start local camera preview (best-effort)
+          startLocalCamera();
+          
+          startBtn.addEventListener('click', function(){
+            running = true;
+            setStatus('Détection en cours ▶');
+            detectionStatusEl.textContent = 'En attente de mains...';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+          });
+          
+          stopBtn.addEventListener('click', function(){
+            running = false;
+            setStatus('Détection arrêtée');
+            detectionStatusEl.textContent = '0 mains détectées';
+            detectionDetailsEl.style.display = 'none';
+            statsInfoEl.style.display = 'none';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+          });
+          
+          // Initial button states
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+        });
+
+        // Close socket cleanly on unload
+        window.addEventListener('beforeunload', function(){ if(ws) try{ ws.close(); }catch(e){} });
+
+        // Local camera helper (independent from server camera)
+        async function startLocalCamera(){
+          const vid = document.getElementById('preview');
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+            console.warn('Camera non supportée');
+            return;
+          }
+          try{
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {width: 1280, height: 720, facingMode: 'user'},
+              audio: false
+            });
+            vid.srcObject = stream;
+            console.log('Caméra locale activée');
+          }catch(err){
+            console.warn('Caméra locale non disponible', err);
+          }
+        }
+      })();
+    </script>
+  </body>
 </html>
+

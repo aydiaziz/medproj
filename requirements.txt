@@ -1,5 +1,11 @@
 fastapi
-uvicorn
+uvicorn[standard]
 opencv-python
 mediapipe
 pyttsx3
+numpy
+# Optional: PyTorch is required if you want to load/train a real model.
+# Installing torch via pip varies by platform; this entry is a placeholder
+# and may install the CPU build by default. For GPU builds follow
+# instructions at https://pytorch.org/get-started/locally/
+torch

@@ -1,0 +1,197 @@
+# Virtual Environments
+.venv/
+.venv311/
+venv/
+env/
+ENV/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+
+# VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# IDE générique
+.project
+.pydevproject
+.settings/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+htmlcov/
+
+# MediaPipe models (volumineux)
+backend/models/*.task
+backend/models/*.tflite
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-shm
+*.sqlite-wal
+
+# Logs
+*.log
+logs/
+log/
+
+# OS
+.DS_Store
+Thumbs.db
+*.lnk
+*~
+.~*
+
+# Node (si frontend futur avec npm)
+node_modules/
+package-lock.json
+yarn.lock
+npm-debug.log*
+yarn-error.log*
+
+# Fichiers temporaires
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+
+# Fichiers de configuration sensibles
+.env.local
+.env.*.local
+.env.prod
+secrets.json
+config.local.json
+
+# Dossiers spécifiques du projet
+/dist/
+/build/
+/tmp/
+/temp/
+
+# Audio/Vidéo générés (TTS, etc.)
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.m4a
+
+# Image thumbnails
+.thumbnails/
+Thumbs.db
+
+# Byte-compiled
+*.pyc
+
+# C extensions
+*.c
+*.so
+
+# VSCode settings (personnel)
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+
+# Fichiers macOS
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+$RECYCLE.BIN/
+ehthumbs.db
+desktop.ini
+
+# Fichiers lock (sauf requirements.txt)
+poetry.lock
+Pipfile.lock
+
+# Certificats SSL (sensibles)
+*.pem
+*.key
+*.crt
+*.cert
+
+# Profiling
+.prof
+*.prof
+*.lprof
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb
+
+# Virtual environments spécifiques
+.venv
+.env
+.env.*
+
+# Fichiers générés dynamiquement
+*.egg-info/
+.eggs/
+
+# Fichiers de build
+*.o
+*.obj
+*.out
+*.exe
+
+# Archive
+*.zip
+*.tar.gz
+*.rar
+*.7z

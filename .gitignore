@@ -1,5 +1,6 @@
 # Virtual Environments
 .venv/
+.venv311_py311/
 .venv311/
 venv/
 env/

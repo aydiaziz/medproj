@@ -9,5 +9,5 @@ Set-Location $scriptDir
 # Si vous utilisez un venv, activez-le d'abord si nécessaire, p.ex. :
 # & .\.venv\Scripts\Activate.ps1
 
-# Lancer uvicorn depuis la racine en important le module "backend.app:app"
-python -m uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
+# Lancer uvicorn depuis la racine en important le module "backend.app_new:app"
+python -m uvicorn backend.app_new:app --reload --host 0.0.0.0 --port 8000

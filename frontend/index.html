@@ -30,11 +30,16 @@
 
         <!-- Live camera preview -->
         <div style="display:flex;justify-content:center;margin-bottom:20px">
-          <video id="preview" autoplay playsinline muted style="width:100%;max-width:640px;height:auto;border-radius:8px;object-fit:cover;transform:scaleX(-1);background:#000;border:2px solid #0066cc"></video>
+          <div id="preview-container" style="width:100%;max-width:640px;height:360px;border-radius:8px;background:#000;border:2px solid #0066cc;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;">
+            Caméra utilisée par le serveur pour la détection
+          </div>
         </div>
 
         <!-- Detection status and hand count -->
         <div id="detection-status" class="text" style="color:#0066cc;font-size:32px;margin:12px 0;">0 mains détectées</div>
+
+        <!-- Recognized text display -->
+        <div id="recognized-text" class="text" style="color:#0b5;font-size:36px;margin:12px 0;min-height:48px;display:flex;align-items:center;justify-content:center;background:#f0fff0;border-radius:8px;border:2px solid #0b5;padding:12px;">En attente de signes...</div>
 
         <!-- Detection details: hands and landmarks -->
         <div id="detection-details" style="margin:20px 0;display:none">
@@ -55,7 +60,7 @@
 
         <!-- Connection status -->
         <p id="status" class="muted" style="margin-top:16px;color:#6b7280">Connexion au serveur...</p>
-        <p style="font-size:12px;color:#999;margin:8px 0">La détection fonctionne via la caméra du serveur (indépendant de l'aperçu local)</p>
+        <p style="font-size:12px;color:#999;margin:8px 0">La caméra est utilisée par le serveur pour la détection en temps réel</p>
       </div>
     </div>
 
@@ -64,6 +69,7 @@
       (function(){
         const WS_URL = 'ws://localhost:8000/ws';
         const detectionStatusEl = document.getElementById('detection-status');
+        const recognizedTextEl = document.getElementById('recognized-text');
         const handsContainerEl = document.getElementById('hands-container');
         const detectionDetailsEl = document.getElementById('detection-details');
         const statusEl = document.getElementById('status');
@@ -73,9 +79,17 @@
 
         let ws = null;
         let running = false;
+        
+        // Fonction de log
+        function log(message) {
+          console.log(`[FRONTEND] ${new Date().toISOString()} - ${message}`);
+        }
 
         // Update status message
-        function setStatus(s){ statusEl.textContent = s; }
+        function setStatus(s){ 
+          log(`Status: ${s}`);
+          statusEl.textContent = s; 
+        }
 
         // Format timestamp nicely
         function formatTime(isoStr){
@@ -159,36 +173,52 @@
 
         // Establish WebSocket connection
         function connect(){
+          log("Tentative de connexion WebSocket...");
           try{
             ws = new WebSocket(WS_URL);
           }catch(e){
+            log(`Erreur création WebSocket: ${e}`);
             setStatus('Impossible de connecter');
-            console.error('WebSocket error', e);
             return;
           }
 
           ws.onopen = function(){ 
+            log("WebSocket connecté");
             setStatus('Connecté ✓');
           };
 
           ws.onmessage = function(evt){
             try{
               const data = JSON.parse(evt.data);
+              
+              // Handle recognized text messages
+              if(data.type === 'recognized_text' && data.text){
+                log(`Signe reconnu: ${data.text}`);
+                recognizedTextEl.textContent = data.text;
+                recognizedTextEl.style.background = '#e6fffa';
+                recognizedTextEl.style.borderColor = '#0b5';
+                setTimeout(() => {
+                  recognizedTextEl.style.background = '#f0fff0';
+                  recognizedTextEl.style.borderColor = '#0b5';
+                }, 3000);
+              }
+              
               // Only update display when running
               if(running){
                 updateDetection(data);
               }
             }catch(err){
-              console.warn('Message non-JSON', err);
+              log(`Erreur parsing: ${err}`);
             }
           };
 
           ws.onerror = function(err){
-            console.error('WebSocket erreur', err);
+            log(`Erreur WebSocket: ${err}`);
             setStatus('Erreur de connexion');
           };
 
           ws.onclose = function(ev){
+            log("WebSocket fermé, reconnexion...");
             setStatus('Déconnecté — Reconnexion...');
             setTimeout(connect, 2000);
           };
@@ -203,10 +233,8 @@
           const startBtn = document.getElementById('startBtn');
           const stopBtn = document.getElementById('stopBtn');
           
-          // Start local camera preview (best-effort)
-          startLocalCamera();
-          
           startBtn.addEventListener('click', function(){
+            log("Démarrage détection");
             running = true;
             setStatus('Détection en cours ▶');
             detectionStatusEl.textContent = 'En attente de mains...';
@@ -215,6 +243,7 @@
           });
           
           stopBtn.addEventListener('click', function(){
+            log("Arrêt détection");
             running = false;
             setStatus('Détection arrêtée');
             detectionStatusEl.textContent = '0 mains détectées';
@@ -227,29 +256,11 @@
           // Initial button states
           startBtn.disabled = false;
           stopBtn.disabled = true;
+          log("Boutons initialisés");
         });
 
         // Close socket cleanly on unload
         window.addEventListener('beforeunload', function(){ if(ws) try{ ws.close(); }catch(e){} });
-
-        // Local camera helper (independent from server camera)
-        async function startLocalCamera(){
-          const vid = document.getElementById('preview');
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-            console.warn('Camera non supportée');
-            return;
-          }
-          try{
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: {width: 1280, height: 720, facingMode: 'user'},
-              audio: false
-            });
-            vid.srcObject = stream;
-            console.log('Caméra locale activée');
-          }catch(err){
-            console.warn('Caméra locale non disponible', err);
-          }
-        }
       })();
     </script>
   </body>
